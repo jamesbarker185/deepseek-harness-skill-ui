@@ -1,0 +1,23 @@
+{
+  "name": "@jamiebarker/dsh-client-ui-skills-palette",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Command-palette skills browser for the DeepSeek Harness web GUI.",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  },
+  "dsh": {
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
