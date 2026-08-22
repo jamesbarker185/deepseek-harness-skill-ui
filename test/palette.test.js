@@ -57,11 +57,19 @@ function loadPalette(options) {
     Object.keys(opts.storageSeed).forEach((k) => storage.cells.set(k, opts.storageSeed[k]))
   }
   const composer = { value: '', focused: 0, focus() { this.focused += 1 } }
+  const search = { focused: 0, focus() { this.focused += 1 } }
+  // When `panelSearch` is false, no sidebar search box exists (e.g. the
+  // section is collapsed or the sidebar is a narrow rail).
+  const searchSelectors = opts.panelSearch === false ? [] : ['.skp-panel-search', '.skp-search']
   const sandbox = {
     document: {
       head: { appendChild: () => {} },
       createElement: () => ({ dataset: {}, textContent: '' }),
-      querySelector: (selector) => (selector === 'textarea[data-phase]' ? composer : null),
+      querySelector: (selector) => {
+        if (selector === 'textarea[data-phase]') return composer
+        if (searchSelectors.includes(selector)) return search
+        return null
+      },
     },
     console,
   }
@@ -77,7 +85,7 @@ function loadPalette(options) {
     if (specifier === 'react') return stubReact()
     throw new Error('unexpected require: ' + specifier)
   })
-  return { exports, listeners, storage, composer }
+  return { exports, listeners, storage, composer, search }
 }
 
 /** A fake client context: records skill.list calls, captures slot components. */
@@ -150,6 +158,12 @@ const OK = (skills) => ({ result: { ok: true, value: { skills } } })
 function pressCtrlK(listeners) {
   for (const listener of listeners) {
     if (listener.type === 'keydown') listener.fn({ ctrlKey: true, metaKey: false, key: 'k', preventDefault: () => {} })
+  }
+}
+
+function pressCtrlSlash(listeners) {
+  for (const listener of listeners) {
+    if (listener.type === 'keydown') listener.fn({ ctrlKey: true, metaKey: false, key: '/', preventDefault: () => {} })
   }
 }
 
@@ -428,6 +442,33 @@ test('sending from the sidebar submits and keeps the section open', async () => 
   assert.deepEqual(p.writes, ['/tdd '])
   assert.equal(p.submitCount(), 1)
   assert.notEqual(searchBoxOf(panelOf(p)), undefined, 'the panel does not close on a send')
+})
+
+test('Ctrl+/ focuses the sidebar search when the section is showing', async () => {
+  const { exports, listeners, search } = loadPalette()
+  const harness = fakeContext({ current: 'ses-1', respond: () => OK(CATALOG) })
+  exports.apply(harness.ctx)
+  await flush()
+
+  pressCtrlSlash(listeners)
+  assert.equal(search.focused, 1)
+})
+
+test('Ctrl+/ opens the full palette when no sidebar search is available', async () => {
+  const { exports, listeners } = loadPalette({ panelSearch: false })
+  const harness = fakeContext({ current: 'ses-1', respond: () => OK(CATALOG) })
+  exports.apply(harness.ctx)
+  pressCtrlSlash(listeners)
+  await flush()
+
+  assert.notEqual(harness.slotComponents.get('skills-palette')(), null, 'the overlay is open')
+})
+
+test('with the palette open, Ctrl+/ focuses the overlay search', async () => {
+  const p = await openedPalette()
+  const before = p.search.focused
+  pressCtrlSlash(p.listeners)
+  assert.equal(p.search.focused, before + 1)
 })
 
 // --- the always-visible sidebar panel ---
