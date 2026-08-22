@@ -272,6 +272,18 @@ function infoButtonOf(row) {
   return buttons[0]
 }
 
+/** The send control inside a row, if the row carries one. */
+function sendButtonOf(row) {
+  const buttons = []
+  const walk = (node) => {
+    if (node === null || typeof node !== 'object') return
+    if (node.type === 'button' && node.props && node.props.className === 'skp-send') buttons.push(node)
+    ;(node.children || []).forEach(walk)
+  }
+  walk(row)
+  return buttons[0]
+}
+
 const CATALOG = [
   { name: 'tdd', description: 'red-green-refactor' },
   { name: 'grill-me', description: 'a relentless interview' },
@@ -384,6 +396,38 @@ test('the info control opens the read pane instead of inserting', async () => {
   const text = textOf(p.overlay())
   assert.match(text, /← Back/)
   assert.match(text, /tdd/)
+})
+
+test('the send button writes the slash command and submits immediately', async () => {
+  const p = await openedPalette()
+  const send = sendButtonOf(rowsOf(p.overlay())[0])
+  assert.notEqual(send, undefined, 'each row carries a send control')
+  send.props.onClick({ stopPropagation: () => {} })
+  await flush()
+
+  assert.deepEqual(p.writes, ['/tdd '])
+  assert.equal(p.submitCount(), 1)
+})
+
+test('the send button keeps typed text as arguments, remembers the skill, and closes', async () => {
+  const p = await openedPalette({ draft: 'check the retry logic' })
+  sendButtonOf(rowsOf(p.overlay())[0]).props.onClick({ stopPropagation: () => {} })
+  await flush()
+
+  assert.equal(p.draft(), '/tdd check the retry logic')
+  assert.equal(p.submitCount(), 1)
+  assert.equal(p.storage.cells.get('skp:recents:C:\\projects\\alpha-PG'), JSON.stringify(['tdd']))
+  assert.equal(p.overlay(), null, 'sending closes the palette')
+})
+
+test('sending from the sidebar submits and keeps the section open', async () => {
+  const p = await mounted()
+  sendButtonOf(rowsOf(panelOf(p))[0]).props.onClick({ stopPropagation: () => {} })
+  await flush()
+
+  assert.deepEqual(p.writes, ['/tdd '])
+  assert.equal(p.submitCount(), 1)
+  assert.notEqual(searchBoxOf(panelOf(p)), undefined, 'the panel does not close on a send')
 })
 
 // --- the always-visible sidebar panel ---
